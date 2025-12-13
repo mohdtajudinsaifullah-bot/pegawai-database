@@ -39,34 +39,30 @@ export default function PegawaiDatabase() {
   const loadAllData = async () => {
     setIsLoading(true);
     try {
-      // Load users
-      const usersResult = await window.storage.get('pegawai_users', true);
+      const usersResult = await window.storage.get('pegawai_users_v2', true);
       if (usersResult) {
         setUsers(JSON.parse(usersResult.value));
       }
 
-      // Load pegawai data
-      const pegawaiResult = await window.storage.get('pegawai_data', true);
+      const pegawaiResult = await window.storage.get('pegawai_data_v2', true);
       if (pegawaiResult) {
         const data = JSON.parse(pegawaiResult.value);
         setPegawai(data);
         setFilteredPegawai(data);
       }
 
-      // Check if user was logged in
-      const sessionResult = await window.storage.get('current_session');
+      const sessionResult = await window.storage.get('current_session_v2');
       if (sessionResult) {
         const session = JSON.parse(sessionResult.value);
         setCurrentUser(session);
         setShowLogin(false);
       }
     } catch (error) {
-      console.log('No existing data, starting fresh');
+      console.log('Starting fresh - no existing data');
     }
     setIsLoading(false);
   };
 
-  // Search functionality
   useEffect(() => {
     const filtered = pegawai.filter(p =>
       p.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -77,28 +73,29 @@ export default function PegawaiDatabase() {
     setFilteredPegawai(filtered);
   }, [searchTerm, pegawai]);
 
-  // Save users to storage
   const saveUsers = async (newUsers) => {
     try {
-      await window.storage.set('pegawai_users', JSON.stringify(newUsers), true);
+      await window.storage.set('pegawai_users_v2', JSON.stringify(newUsers), true);
       setUsers(newUsers);
+      return true;
     } catch (error) {
-      alert('Gagal menyimpan data users');
+      console.error('Error saving users:', error);
+      return false;
     }
   };
 
-  // Save pegawai to storage
   const savePegawai = async (newPegawai) => {
     try {
-      await window.storage.set('pegawai_data', JSON.stringify(newPegawai), true);
+      await window.storage.set('pegawai_data_v2', JSON.stringify(newPegawai), true);
       setPegawai(newPegawai);
       setFilteredPegawai(newPegawai);
+      return true;
     } catch (error) {
-      alert('Gagal menyimpan data pegawai');
+      console.error('Error saving pegawai:', error);
+      return false;
     }
   };
 
-  // Handle Login
   const handleLogin = async () => {
     if (!loginData.nokp || !loginData.password) {
       alert('Sila isi No. KP dan Password');
@@ -118,12 +115,15 @@ export default function PegawaiDatabase() {
     }
 
     setCurrentUser(user);
-    await window.storage.set('current_session', JSON.stringify(user));
+    try {
+      await window.storage.set('current_session_v2', JSON.stringify(user));
+    } catch (error) {
+      console.error('Session save error:', error);
+    }
     setShowLogin(false);
     setLoginData({ nokp: '', password: '' });
   };
 
-  // Handle Register
   const handleRegister = async () => {
     if (!registerData.nama || !registerData.nokp || !registerData.password || !registerData.confirmPassword) {
       alert('Sila isi semua medan');
@@ -154,18 +154,24 @@ export default function PegawaiDatabase() {
       createdAt: new Date().toISOString()
     };
 
-    await saveUsers([...users, newUser]);
-
-    alert('Pendaftaran berjaya! Sila log masuk.');
-    setShowRegister(false);
-    setShowLogin(true);
-    setRegisterData({ nama: '', nokp: '', password: '', confirmPassword: '' });
+    const saved = await saveUsers([...users, newUser]);
+    if (saved) {
+      alert('Pendaftaran berjaya! Sila log masuk.');
+      setShowRegister(false);
+      setShowLogin(true);
+      setRegisterData({ nama: '', nokp: '', password: '', confirmPassword: '' });
+    } else {
+      alert('Gagal mendaftar. Cuba lagi.');
+    }
   };
 
-  // Handle Logout
   const handleLogout = async () => {
     setCurrentUser(null);
-    await window.storage.delete('current_session');
+    try {
+      await window.storage.delete('current_session_v2');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     setShowLogin(true);
   };
 
@@ -180,11 +186,12 @@ export default function PegawaiDatabase() {
       return;
     }
     
+    let success = false;
     if (editingId) {
       const updated = pegawai.map(p => 
         p.id === editingId ? { ...formData, id: editingId, addedBy: p.addedBy, updatedBy: currentUser.nokp, updatedAt: new Date().toISOString() } : p
       );
-      await savePegawai(updated);
+      success = await savePegawai(updated);
     } else {
       const newPegawai = { 
         ...formData, 
@@ -192,10 +199,14 @@ export default function PegawaiDatabase() {
         addedBy: currentUser.nokp,
         createdAt: new Date().toISOString()
       };
-      await savePegawai([...pegawai, newPegawai]);
+      success = await savePegawai([...pegawai, newPegawai]);
     }
     
-    resetForm();
+    if (success) {
+      resetForm();
+    } else {
+      alert('Gagal menyimpan. Cuba lagi.');
+    }
   };
 
   const handleEdit = (p) => {
@@ -228,7 +239,6 @@ export default function PegawaiDatabase() {
     );
   }
 
-  // Login Screen
   if (showLogin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -292,7 +302,6 @@ export default function PegawaiDatabase() {
     );
   }
 
-  // Register Screen
   if (showRegister) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -379,11 +388,9 @@ export default function PegawaiDatabase() {
     );
   }
 
-  // Main App (after login)
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
             <div className="flex items-center gap-3">
@@ -411,7 +418,6 @@ export default function PegawaiDatabase() {
             </div>
           </div>
 
-          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -424,7 +430,6 @@ export default function PegawaiDatabase() {
           </div>
         </div>
 
-        {/* Table */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -479,13 +484,11 @@ export default function PegawaiDatabase() {
           </div>
         </div>
 
-        {/* Total Count */}
         <div className="mt-4 text-center text-gray-600">
           Jumlah: {filteredPegawai.length} pegawai
         </div>
       </div>
 
-      {/* Modal Form */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
