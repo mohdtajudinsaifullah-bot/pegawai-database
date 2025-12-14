@@ -2,16 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Save, X, Users, LogOut, LogIn, UserPlus, RefreshCw } from 'lucide-react';
 
 export default function PegawaiDatabase() {
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-T1gwwKmztvqRE-9CQWVlxFAPNk-F1cqDNS9d2B7c2nnFEpP_jiKUswhFkDAOfevc/exec';
+  
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogin, setShowLogin] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
   const [pegawai, setPegawai] = useState([]);
-  const [users, setUsers] = useState([]);
   const [filteredPegawai, setFilteredPegawai] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     nama: '',
     nokp: '',
@@ -31,37 +32,14 @@ export default function PegawaiDatabase() {
     confirmPassword: ''
   });
 
-  // Load data from persistent storage
   useEffect(() => {
-    loadAllData();
-  }, []);
-
-  const loadAllData = async () => {
-    setIsLoading(true);
-    try {
-      const usersResult = await window.storage.get('pegawai_users_v2', true);
-      if (usersResult) {
-        setUsers(JSON.parse(usersResult.value));
-      }
-
-      const pegawaiResult = await window.storage.get('pegawai_data_v2', true);
-      if (pegawaiResult) {
-        const data = JSON.parse(pegawaiResult.value);
-        setPegawai(data);
-        setFilteredPegawai(data);
-      }
-
-      const sessionResult = await window.storage.get('current_session_v2');
-      if (sessionResult) {
-        const session = JSON.parse(sessionResult.value);
-        setCurrentUser(session);
-        setShowLogin(false);
-      }
-    } catch (error) {
-      console.log('Starting fresh - no existing data');
+    loadData();
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+      setShowLogin(false);
     }
-    setIsLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     const filtered = pegawai.filter(p =>
@@ -73,27 +51,19 @@ export default function PegawaiDatabase() {
     setFilteredPegawai(filtered);
   }, [searchTerm, pegawai]);
 
-  const saveUsers = async (newUsers) => {
+  const loadData = async () => {
+    setIsLoading(true);
     try {
-      await window.storage.set('pegawai_users_v2', JSON.stringify(newUsers), true);
-      setUsers(newUsers);
-      return true;
+      const response = await fetch(SCRIPT_URL + '?action=getPegawai');
+      const data = await response.json();
+      if (data.success) {
+        setPegawai(data.pegawai);
+        setFilteredPegawai(data.pegawai);
+      }
     } catch (error) {
-      console.error('Error saving users:', error);
-      return false;
+      console.error('Error loading data:', error);
     }
-  };
-
-  const savePegawai = async (newPegawai) => {
-    try {
-      await window.storage.set('pegawai_data_v2', JSON.stringify(newPegawai), true);
-      setPegawai(newPegawai);
-      setFilteredPegawai(newPegawai);
-      return true;
-    } catch (error) {
-      console.error('Error saving pegawai:', error);
-      return false;
-    }
+    setIsLoading(false);
   };
 
   const handleLogin = async () => {
@@ -102,26 +72,33 @@ export default function PegawaiDatabase() {
       return;
     }
 
-    const user = users.find(u => u.nokp === loginData.nokp);
-    
-    if (!user) {
-      alert('No. KP tidak dijumpai. Sila daftar akaun baru.');
-      return;
-    }
-
-    if (user.password !== loginData.password) {
-      alert('Password salah!');
-      return;
-    }
-
-    setCurrentUser(user);
+    setIsLoading(true);
     try {
-      await window.storage.set('current_session_v2', JSON.stringify(user));
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'loginUser',
+          nokp: loginData.nokp,
+          password: loginData.password
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCurrentUser(data.user);
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+        setShowLogin(false);
+        setLoginData({ nokp: '', password: '' });
+        await loadData();
+      } else {
+        alert('No. KP atau Password salah!');
+      }
     } catch (error) {
-      console.error('Session save error:', error);
+      console.error('Login error:', error);
+      alert('Gagal log masuk. Cuba lagi.');
     }
-    setShowLogin(false);
-    setLoginData({ nokp: '', password: '' });
+    setIsLoading(false);
   };
 
   const handleRegister = async () => {
@@ -140,39 +117,41 @@ export default function PegawaiDatabase() {
       return;
     }
 
-    const existingUser = users.find(u => u.nokp === registerData.nokp);
-    if (existingUser) {
-      alert('No. KP ini telah didaftarkan!');
-      return;
-    }
-
-    const newUser = {
-      id: Date.now(),
-      nama: registerData.nama,
-      nokp: registerData.nokp,
-      password: registerData.password,
-      createdAt: new Date().toISOString()
-    };
-
-    const saved = await saveUsers([...users, newUser]);
-    if (saved) {
-      alert('Pendaftaran berjaya! Sila log masuk.');
-      setShowRegister(false);
-      setShowLogin(true);
-      setRegisterData({ nama: '', nokp: '', password: '', confirmPassword: '' });
-    } else {
+    setIsLoading(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'registerUser',
+          nama: registerData.nama,
+          nokp: registerData.nokp,
+          password: registerData.password
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Pendaftaran berjaya! Sila log masuk.');
+        setShowRegister(false);
+        setShowLogin(true);
+        setRegisterData({ nama: '', nokp: '', password: '', confirmPassword: '' });
+      } else {
+        alert('Gagal mendaftar. Cuba lagi.');
+      }
+    } catch (error) {
+      console.error('Register error:', error);
       alert('Gagal mendaftar. Cuba lagi.');
     }
+    setIsLoading(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     setCurrentUser(null);
-    try {
-      await window.storage.delete('current_session_v2');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    localStorage.removeItem('currentUser');
     setShowLogin(true);
+    setPegawai([]);
+    setFilteredPegawai([]);
   };
 
   const handleInputChange = (e) => {
@@ -186,40 +165,82 @@ export default function PegawaiDatabase() {
       return;
     }
     
-    let success = false;
-    if (editingId) {
-      const updated = pegawai.map(p => 
-        p.id === editingId ? { ...formData, id: editingId, addedBy: p.addedBy, updatedBy: currentUser.nokp, updatedAt: new Date().toISOString() } : p
-      );
-      success = await savePegawai(updated);
-    } else {
-      const newPegawai = { 
-        ...formData, 
-        id: Date.now(),
-        addedBy: currentUser.nokp,
-        createdAt: new Date().toISOString()
-      };
-      success = await savePegawai([...pegawai, newPegawai]);
-    }
-    
-    if (success) {
-      resetForm();
-    } else {
+    setIsLoading(true);
+    try {
+      if (editingId) {
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'updatePegawai',
+            id: editingId,
+            ...formData,
+            updatedBy: currentUser.nokp
+          })
+        });
+        const data = await response.json();
+        if (data.success) {
+          alert('Pegawai dikemaskini!');
+          await loadData();
+          resetForm();
+        }
+      } else {
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'addPegawai',
+            ...formData,
+            addedBy: currentUser.nokp
+          })
+        });
+        const data = await response.json();
+        if (data.success) {
+          alert('Pegawai berjaya ditambah!');
+          await loadData();
+          resetForm();
+        }
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
       alert('Gagal menyimpan. Cuba lagi.');
     }
+    setIsLoading(false);
   };
 
   const handleEdit = (p) => {
-    setFormData(p);
+    setFormData({
+      nama: p.nama,
+      nokp: p.nokp,
+      jawatan: p.jawatan,
+      jabatan: p.jabatan,
+      email: p.email,
+      notel: p.notel
+    });
     setEditingId(p.id);
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Adakah anda pasti mahu memadam pegawai ini?')) {
-      const updated = pegawai.filter(p => p.id !== id);
-      await savePegawai(updated);
+    if (!window.confirm('Adakah anda pasti mahu memadam pegawai ini?')) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'deletePegawai',
+          id: id
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Pegawai berjaya dipadam!');
+        await loadData();
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Gagal memadam. Cuba lagi.');
     }
+    setIsLoading(false);
   };
 
   const resetForm = () => {
@@ -228,7 +249,7 @@ export default function PegawaiDatabase() {
     setIsModalOpen(false);
   };
 
-  if (isLoading) {
+  if (isLoading && pegawai.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
@@ -261,6 +282,7 @@ export default function PegawaiDatabase() {
                 placeholder="YYMMDD-PB-XXXX"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                disabled={isLoading}
               />
             </div>
 
@@ -275,15 +297,21 @@ export default function PegawaiDatabase() {
                 placeholder="Masukkan password"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                disabled={isLoading}
               />
             </div>
 
             <button
               onClick={handleLogin}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50"
             >
-              <LogIn className="w-5 h-5" />
-              Log Masuk
+              {isLoading ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <LogIn className="w-5 h-5" />
+              )}
+              {isLoading ? 'Sedang log masuk...' : 'Log Masuk'}
             </button>
 
             <div className="text-center pt-4 border-t">
@@ -323,6 +351,7 @@ export default function PegawaiDatabase() {
                 onChange={(e) => setRegisterData({...registerData, nama: e.target.value})}
                 placeholder="Nama anda"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isLoading}
               />
             </div>
 
@@ -336,6 +365,7 @@ export default function PegawaiDatabase() {
                 onChange={(e) => setRegisterData({...registerData, nokp: e.target.value})}
                 placeholder="YYMMDD-PB-XXXX"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isLoading}
               />
             </div>
 
@@ -349,6 +379,7 @@ export default function PegawaiDatabase() {
                 onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
                 placeholder="Minimum 6 aksara"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isLoading}
               />
             </div>
 
@@ -362,15 +393,21 @@ export default function PegawaiDatabase() {
                 onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
                 placeholder="Masukkan password semula"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isLoading}
               />
             </div>
 
             <button
               onClick={handleRegister}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium"
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition font-medium disabled:opacity-50"
             >
-              <UserPlus className="w-5 h-5" />
-              Daftar
+              {isLoading ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <UserPlus className="w-5 h-5" />
+              )}
+              {isLoading ? 'Sedang mendaftar...' : 'Daftar'}
             </button>
 
             <div className="text-center pt-4 border-t">
@@ -448,7 +485,7 @@ export default function PegawaiDatabase() {
                 {filteredPegawai.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                      Tiada data pegawai. Klik "Tambah" untuk mula.
+                      {isLoading ? 'Memuat data...' : 'Tiada data pegawai. Klik "Tambah" untuk mula.'}
                     </td>
                   </tr>
                 ) : (
@@ -516,6 +553,7 @@ export default function PegawaiDatabase() {
                     value={formData.nama}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -530,6 +568,7 @@ export default function PegawaiDatabase() {
                     onChange={handleInputChange}
                     placeholder="YYMMDD-PB-XXXX"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -543,6 +582,7 @@ export default function PegawaiDatabase() {
                     value={formData.jawatan}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -556,6 +596,7 @@ export default function PegawaiDatabase() {
                     value={formData.jabatan}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -569,6 +610,7 @@ export default function PegawaiDatabase() {
                     value={formData.email}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
@@ -583,20 +625,27 @@ export default function PegawaiDatabase() {
                     onChange={handleInputChange}
                     placeholder="01X-XXXXXXX"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={isLoading}
                   />
                 </div>
 
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleSubmit}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                    disabled={isLoading}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
                   >
-                    <Save className="w-5 h-5" />
-                    Simpan
+                    {isLoading ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Save className="w-5 h-5" />
+                    )}
+                    {isLoading ? 'Menyimpan...' : 'Simpan'}
                   </button>
                   <button
                     onClick={resetForm}
-                    className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                    disabled={isLoading}
+                    className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
                   >
                     Batal
                   </button>
