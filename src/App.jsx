@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Save, X, Users, LogOut, LogIn, UserPlus, RefreshCw } from 'lucide-react';
 
 export default function PegawaiDatabase() {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw-T1gwwKmztvqRE-9CQWVlxFAPNk-F1cqDNS9d2B7c2nnFEpP_jiKUswhFkDAOfevc/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxpX6_ZHdvF5F_Wa2FrEm0XEt2_kEyq-U09VXhajSw9HijhFcar_FPMFXw0I40OGNzl/exec';
   
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogin, setShowLogin] = useState(true);
