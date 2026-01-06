@@ -4,7 +4,8 @@ import AdminDashboard from './AdminDashboard';
 import UserProfile from './UserProfile';
 
 export default function App() {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_2JX5c1CUIwkHdUUBgVNFOFHYy_2HGI5GhpH-EkURUZSTYzNR4czArmL4xifvjGs/exec';
+  // Apps Script Web App URL
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhTfSxg11fWYXIDEfy5I4dwX80GPlQECrc7UUfOZ9A62qfMHx6zVMK2n6y5jXhncGU/exec';
   
   const [currentView, setCurrentView] = useState('login'); // 'login', 'register', 'dashboard', 'profile'
   const [currentUser, setCurrentUser] = useState(null);
@@ -51,7 +52,7 @@ export default function App() {
     }
   };
 
-  // LOGIN FUNCTION - FIXED CORS ISSUE
+  // LOGIN FUNCTION - FIXED TO USE GET METHOD
   const handleLogin = async () => {
     if (!loginData.nokp || !loginData.password) {
       alert('Sila isi No. KP dan Password');
@@ -66,17 +67,17 @@ export default function App() {
     setIsLoading(true);
     
     try {
-      console.log('🔵 Sending login request...'); 
+      console.log('🔵 Sending login request...');
       console.log('📤 Data:', { nokp: loginData.nokp, password: loginData.password });
       
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        // NO headers - to avoid CORS preflight
-        body: JSON.stringify({
-          action: 'login',
-          nokp: loginData.nokp,
-          password: loginData.password
-        })
+      // Use GET with URL parameters
+      const url = `${SCRIPT_URL}?action=login&nokp=${encodeURIComponent(loginData.nokp)}&password=${encodeURIComponent(loginData.password)}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
       
       console.log('📥 Response status:', response.status);
@@ -108,7 +109,7 @@ export default function App() {
     setIsLoading(false);
   };
 
-  // REGISTER FUNCTION - FIXED CORS ISSUE
+  // REGISTER FUNCTION - FIXED TO USE GET METHOD
   const handleRegister = async () => {
     if (!registerData.nama || !registerData.nokp || !registerData.password || !registerData.confirmPassword) {
       alert('Sila isi semua medan');
@@ -133,15 +134,14 @@ export default function App() {
     setIsLoading(true);
     
     try {
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        // NO headers - to avoid CORS preflight
-        body: JSON.stringify({
-          action: 'register',
-          nama: registerData.nama,
-          nokp: registerData.nokp,
-          password: registerData.password
-        })
+      // Use GET with URL parameters
+      const url = `${SCRIPT_URL}?action=register&nama=${encodeURIComponent(registerData.nama)}&nokp=${encodeURIComponent(registerData.nokp)}&password=${encodeURIComponent(registerData.password)}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
       
       const data = await response.json();

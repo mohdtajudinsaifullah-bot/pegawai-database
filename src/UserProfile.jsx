@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Home, LogOut, FileText, Heart, Baby, MapPin, TrendingUp, Calendar, Briefcase, Building, Map, RefreshCw, Edit2, Save } from 'lucide-react';
 
 export default function UserProfile({ currentUser, selectedNokp, onBackToDashboard, onLogout }) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_2JX5c1CUIwkHdUUBgVNFOFHYy_2HGI5GhpH-EkURUZSTYzNR4czArmL4xifvjGs/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhTfSxg11fWYXIDEfy5I4dwX80GPlQECrc7UUfOZ9A62qfMHx6zVMK2n6y5jXhncGU/exec';
   
   const [profileData, setProfileData] = useState(null);
   const [activeTab, setActiveTab] = useState('profile');

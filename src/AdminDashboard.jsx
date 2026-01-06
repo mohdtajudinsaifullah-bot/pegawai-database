@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Search, Plus, Edit2, Trash2, Save, X, Shield, LogOut, FileText, RefreshCw } from 'lucide-react';
 
 export default function AdminDashboard({ currentUser, onLogout, onViewProfile }) {
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_2JX5c1CUIwkHdUUBgVNFOFHYy_2HGI5GhpH-EkURUZSTYzNR4czArmL4xifvjGs/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhTfSxg11fWYXIDEfy5I4dwX80GPlQECrc7UUfOZ9A62qfMHx6zVMK2n6y5jXhncGU/exec';
   
   const [pegawai, setPegawai] = useState([]);
   const [filteredPegawai, setFilteredPegawai] = useState([]);
