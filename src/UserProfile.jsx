@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Home, LogOut, FileText, Heart, Baby, MapPin, TrendingUp, Calendar, Briefcase, Building, Map, RefreshCw, Edit2, Save } from 'lucide-react';
+import { User, Home, LogOut, FileText, Heart, Baby, MapPin, TrendingUp, Calendar, Briefcase, Building, Map, RefreshCw, Edit2, Save, Plus, Trash2 } from 'lucide-react';
 
 export default function UserProfile({ currentUser, selectedNokp, onBackToDashboard, onLogout }) {
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhTfSxg11fWYXIDEfy5I4dwX80GPlQECrc7UUfOZ9A62qfMHx6zVMK2n6y5jXhncGU/exec';
@@ -8,22 +8,24 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
   const [activeTab, setActiveTab] = useState('profile');
   const [isLoading, setIsLoading] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isEditingPasangan, setIsEditingPasangan] = useState(false);
   
   const [profileForm, setProfileForm] = useState({
-    alamat: '',
-    tempatKerja: '',
+    nama: '',
+    nokp: '',
+    jawatan: '',
     jabatan: '',
-    negeri: '',
-    tarikhLantikanSkimLS: '',
-    gredSekarang: ''
+    email: '',
+    notel: ''
   });
   
-  const [pasanganForm, setPasanganForm] = useState({
+  // Pasangan - support multiple (poligami)
+  const [pasanganList, setPasanganList] = useState([]);
+  const [isEditingPasangan, setIsEditingPasangan] = useState(false);
+  const [newPasanganForm, setNewPasanganForm] = useState({
     nama: '',
     noPengenalan: '',
-    pekerjaan: '',
-    majikan: ''
+    tempatBertugas: '',
+    jabatan: ''
   });
 
   const nokpToView = selectedNokp || currentUser?.nokp;
@@ -35,57 +37,60 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
     }
   }, [currentUser]);
 
+  // FIXED: Load from Pegawai sheet instead of Profiles
   const loadProfileData = async () => {
     setIsLoading(true);
     try {
-      console.log('🔵 Loading profile data...');
+      console.log('🔵 Loading profile data from Pegawai sheet...');
       console.log('📤 user_content_key:', currentUser.user_content_key);
       
       const response = await fetch(
-        `${SCRIPT_URL}?action=getUserProfile&user_content_key=${currentUser.user_content_key}`
+        `${SCRIPT_URL}?action=getPegawai&user_content_key=${currentUser.user_content_key}`
       );
       
       console.log('📥 Response status:', response.status);
       
       const data = await response.json();
-      console.log('📦 Profile data:', data);
+      console.log('📦 Pegawai data:', data);
       
-      if (data.success) {
+      if (data.success && data.data) {
         setProfileData(data.data);
         setProfileForm({
-          alamat: data.data?.alamat || '',
-          tempatKerja: data.data?.tempatKerja || '',
+          nama: data.data?.nama || '',
+          nokp: data.data?.nokp || '',
+          jawatan: data.data?.jawatan || '',
           jabatan: data.data?.jabatan || '',
-          negeri: data.data?.negeri || '',
-          tarikhLantikanSkimLS: data.data?.tarikhLantikanSkimLS || '',
-          gredSekarang: data.data?.gredSekarang || ''
+          email: data.data?.email || '',
+          notel: data.data?.notel || ''
         });
       } else {
-        alert(data.message || 'Gagal memuat profil');
+        console.log('⚠️ No profile data found');
       }
     } catch (error) {
       console.error('💥 Error loading profile:', error);
-      alert('Gagal memuat profil');
     }
     setIsLoading(false);
   };
 
+  // Load pasangan data - support multiple
   const loadPasanganData = async () => {
     try {
+      console.log('🔵 Loading pasangan data...');
       const response = await fetch(
         `${SCRIPT_URL}?action=getSpouse&user_content_key=${currentUser.user_content_key}`
       );
       const data = await response.json();
-      if (data.success) {
-        setPasanganForm({
-          nama: data.data?.nama || '',
-          noPengenalan: data.data?.noPengenalan || '',
-          pekerjaan: data.data?.pekerjaan || '',
-          majikan: data.data?.majikan || ''
-        });
+      console.log('📦 Pasangan response:', data);
+      
+      if (data.success && data.data && data.data.length > 0) {
+        console.log('✅ Pasangan found:', data.data.length);
+        setPasanganList(data.data);
+      } else {
+        console.log('ℹ️ No spouse data found');
+        setPasanganList([]);
       }
     } catch (error) {
-      console.error('Error loading spouse data:', error);
+      console.error('💥 Error loading spouse data:', error);
     }
   };
 
@@ -95,87 +100,18 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
     }
   }, [activeTab]);
 
-  const handleUpdateProfile = async () => {
-  setIsLoading(true);
-  try {
-    console.log('🔵 Updating profile...');
-    console.log('📤 Data:', profileForm);
-    
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'updateUserProfile',
-        user_content_key: currentUser.user_content_key,
-        profileData: profileForm
-      })
+  const handleAddPasangan = () => {
+    // Add new pasangan to list (local state)
+    setPasanganList([...pasanganList, { ...newPasanganForm, id: Date.now() }]);
+    setNewPasanganForm({
+      nama: '',
+      noPengenalan: '',
+      tempatBertugas: '',
+      jabatan: ''
     });
-    
-    console.log('📥 Response status:', response.status);
-    
-    const data = await response.json();
-    console.log('📦 Update response:', data);
-    
-    // Accept both 200 and 302 as success
-    if (data.success || response.status === 200) {
-      alert('Profil dikemaskini!');
-      await loadProfileData();
-      setIsEditingProfile(false);
-    } else {
-      // Still reload to show updated data even if response says failed
-      await loadProfileData();
-      setIsEditingProfile(false);
-      alert('Profil dikemaskini!'); // Show success since data actually saved
-    }
-  } catch (error) {
-    console.error('💥 Error updating profile:', error);
-    // Even on error, reload data to check if it saved
-    await loadProfileData();
-    setIsEditingProfile(false);
-    alert('Profil dikemaskini!'); // Assume success since backend works
-  }
-  setIsLoading(false);
-};
-
-  const handleUpdatePasangan = async () => {
-  setIsLoading(true);
-  try {
-    console.log('🔵 Updating spouse data...');
-    console.log('📤 Data:', pasanganForm);
-    
-    const response = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'updateSpouse',
-        user_content_key: currentUser.user_content_key,
-        spouseData: pasanganForm
-      })
-    });
-    
-    console.log('📥 Response status:', response.status);
-    
-    const data = await response.json();
-    console.log('📦 Update response:', data);
-    
-    // Accept both success response and any 200 status
-    if (data.success || response.status === 200) {
-      alert('Maklumat pasangan dikemaskini!');
-      await loadPasanganData();
-      setIsEditingPasangan(false);
-    } else {
-      // Still reload to show updated data
-      await loadPasanganData();
-      setIsEditingPasangan(false);
-      alert('Maklumat pasangan dikemaskini!');
-    }
-  } catch (error) {
-    console.error('💥 Error updating spouse:', error);
-    // Reload anyway
-    await loadPasanganData();
     setIsEditingPasangan(false);
-    alert('Maklumat pasangan dikemaskini!');
-  }
-  setIsLoading(false);
-};
+    alert('Pasangan ditambah! (Coming soon: Save to database)');
+  };
 
   if (isLoading && !profileData) {
     return (
@@ -266,6 +202,7 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-6">
+          {/* PROFILE TAB - FIXED TO SHOW PEGAWAI DATA */}
           {activeTab === 'profile' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
@@ -281,154 +218,80 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
                 )}
               </div>
 
-              {isEditingProfile ? (
-                <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 flex items-start gap-2">
+                  <User className="w-5 h-5 text-gray-400 mt-1" />
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Alamat</label>
-                    <textarea
-                      value={profileForm.alamat}
-                      onChange={(e) => setProfileForm({ ...profileForm, alamat: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      rows="3"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tempat Kerja</label>
-                      <input
-                        type="text"
-                        value={profileForm.tempatKerja}
-                        onChange={(e) => setProfileForm({ ...profileForm, tempatKerja: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Jabatan</label>
-                      <input
-                        type="text"
-                        value={profileForm.jabatan}
-                        onChange={(e) => setProfileForm({ ...profileForm, jabatan: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Negeri</label>
-                      <input
-                        type="text"
-                        value={profileForm.negeri}
-                        onChange={(e) => setProfileForm({ ...profileForm, negeri: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tarikh Lantikan Skim LS</label>
-                      <input
-                        type="date"
-                        value={profileForm.tarikhLantikanSkimLS}
-                        onChange={(e) => setProfileForm({ ...profileForm, tarikhLantikanSkimLS: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Gred Sekarang</label>
-                      <input
-                        type="text"
-                        value={profileForm.gredSekarang}
-                        onChange={(e) => setProfileForm({ ...profileForm, gredSekarang: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleUpdateProfile}
-                      disabled={isLoading}
-                      className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
-                    >
-                      {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                      Simpan
-                    </button>
-                    <button
-                      onClick={() => setIsEditingProfile(false)}
-                      className="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 transition"
-                    >
-                      Batal
-                    </button>
+                    <p className="text-sm text-gray-500">Nama</p>
+                    <p className="text-gray-800 font-medium">{profileData?.nama || '-'}</p>
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2 flex items-start gap-2">
-                    <Home className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Alamat</p>
-                      <p className="text-gray-800 font-medium">{profileData?.alamat || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Building className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Tempat Kerja</p>
-                      <p className="text-gray-800 font-medium">{profileData?.tempatKerja || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Briefcase className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Jabatan</p>
-                      <p className="text-gray-800 font-medium">{profileData?.jabatan || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Map className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Negeri</p>
-                      <p className="text-gray-800 font-medium">{profileData?.negeri || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Calendar className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Tarikh Lantikan Skim LS</p>
-                      <p className="text-gray-800 font-medium">{profileData?.tarikhLantikanSkimLS || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <TrendingUp className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Gred Sekarang</p>
-                      <p className="text-gray-800 font-medium">{profileData?.gredSekarang || '-'}</p>
-                    </div>
+                <div className="flex items-start gap-2">
+                  <FileText className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">No. KP</p>
+                    <p className="text-gray-800 font-medium">{profileData?.nokp || '-'}</p>
                   </div>
                 </div>
-              )}
+                <div className="flex items-start gap-2">
+                  <Briefcase className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">Jawatan</p>
+                    <p className="text-gray-800 font-medium">{profileData?.jawatan || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Building className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">Jabatan</p>
+                    <p className="text-gray-800 font-medium">{profileData?.jabatan || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <FileText className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-gray-800 font-medium">{profileData?.email || '-'}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <FileText className="w-5 h-5 text-gray-400 mt-1" />
+                  <div>
+                    <p className="text-sm text-gray-500">No. Telefon</p>
+                    <p className="text-gray-800 font-medium">{profileData?.notel || '-'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* PASANGAN TAB - FIXED WITH ADD BUTTON */}
           {activeTab === 'pasangan' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-800">Maklumat Pasangan</h2>
                 {canEdit && (
                   <button
-                    onClick={() => setIsEditingPasangan(!isEditingPasangan)}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                    onClick={() => setIsEditingPasangan(true)}
+                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
                   >
-                    <Edit2 className="w-5 h-5" />
-                    {isEditingPasangan ? 'Batal' : 'Edit'}
+                    <Plus className="w-5 h-5" />
+                    Tambah Pasangan
                   </button>
                 )}
               </div>
 
-              {isEditingPasangan ? (
-                <div className="space-y-4">
+              {/* Add New Pasangan Form */}
+              {isEditingPasangan && (
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 space-y-4">
+                  <h3 className="font-bold text-lg text-blue-900">Tambah Pasangan Baru</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nama Pasangan</label>
                       <input
                         type="text"
-                        value={pasanganForm.nama}
-                        onChange={(e) => setPasanganForm({ ...pasanganForm, nama: e.target.value })}
+                        value={newPasanganForm.nama}
+                        onChange={(e) => setNewPasanganForm({ ...newPasanganForm, nama: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
@@ -436,37 +299,36 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
                       <label className="block text-sm font-medium text-gray-700 mb-1">No. Pengenalan</label>
                       <input
                         type="text"
-                        value={pasanganForm.noPengenalan}
-                        onChange={(e) => setPasanganForm({ ...pasanganForm, noPengenalan: e.target.value })}
+                        value={newPasanganForm.noPengenalan}
+                        onChange={(e) => setNewPasanganForm({ ...newPasanganForm, noPengenalan: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Pekerjaan</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Tempat Bertugas</label>
                       <input
                         type="text"
-                        value={pasanganForm.pekerjaan}
-                        onChange={(e) => setPasanganForm({ ...pasanganForm, pekerjaan: e.target.value })}
+                        value={newPasanganForm.tempatBertugas}
+                        onChange={(e) => setNewPasanganForm({ ...newPasanganForm, tempatBertugas: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Majikan</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Jabatan</label>
                       <input
                         type="text"
-                        value={pasanganForm.majikan}
-                        onChange={(e) => setPasanganForm({ ...pasanganForm, majikan: e.target.value })}
+                        value={newPasanganForm.jabatan}
+                        onChange={(e) => setNewPasanganForm({ ...newPasanganForm, jabatan: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={handleUpdatePasangan}
-                      disabled={isLoading}
-                      className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                      onClick={handleAddPasangan}
+                      className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
                     >
-                      {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                      <Save className="w-5 h-5" />
                       Simpan
                     </button>
                     <button
@@ -477,62 +339,111 @@ export default function UserProfile({ currentUser, selectedNokp, onBackToDashboa
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* List of Pasangan */}
+              {pasanganList.length > 0 ? (
+                pasanganList.map((pasangan, index) => (
+                  <div key={index} className="border-2 border-gray-200 rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg">Pasangan {pasanganList.length > 1 ? `#${index + 1}` : ''}</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="md:col-span-2 flex items-start gap-2">
+                        <User className="w-5 h-5 text-gray-400 mt-1" />
+                        <div>
+                          <p className="text-sm text-gray-500">Nama Pasangan</p>
+                          <p className="text-gray-800 font-medium">{pasangan.nama || '-'}</p>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2 flex items-start gap-2">
+                        <FileText className="w-5 h-5 text-gray-400 mt-1" />
+                        <div>
+                          <p className="text-sm text-gray-500">No. Pengenalan</p>
+                          <p className="text-gray-800 font-medium">{pasangan.noPengenalan || '-'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Building className="w-5 h-5 text-gray-400 mt-1" />
+                        <div>
+                          <p className="text-sm text-gray-500">Tempat Bertugas</p>
+                          <p className="text-gray-800 font-medium">{pasangan.tempatKerja || pasangan.tempatBertugas || '-'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Briefcase className="w-5 h-5 text-gray-400 mt-1" />
+                        <div>
+                          <p className="text-sm text-gray-500">Jabatan</p>
+                          <p className="text-gray-800 font-medium">{pasangan.jabatan || '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2 flex items-start gap-2">
-                    <User className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Nama Pasangan</p>
-                      <p className="text-gray-800 font-medium">{pasanganForm.nama || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="md:col-span-2 flex items-start gap-2">
-                    <FileText className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">No. Pengenalan</p>
-                      <p className="text-gray-800 font-medium">{pasanganForm.noPengenalan || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Briefcase className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Pekerjaan</p>
-                      <p className="text-gray-800 font-medium">{pasanganForm.pekerjaan || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Building className="w-5 h-5 text-gray-400 mt-1" />
-                    <div>
-                      <p className="text-sm text-gray-500">Majikan</p>
-                      <p className="text-gray-800 font-medium">{pasanganForm.majikan || '-'}</p>
-                    </div>
-                  </div>
+                <div className="text-center py-12 text-gray-500">
+                  <Heart className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <p>Tiada maklumat pasangan</p>
                 </div>
               )}
             </div>
           )}
 
+          {/* ANAK, PENEMPATAN, KENAIKAN PANGKAT - PLACEHOLDER WITH EDIT BUTTONS */}
           {activeTab === 'anak' && (
-            <div className="text-center py-12 text-gray-500">
-              <Baby className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">Tab Anak</p>
-              <p className="text-sm mt-2">Coming soon - Next update</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Maklumat Anak</h2>
+                {canEdit && (
+                  <button className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                    <Plus className="w-5 h-5" />
+                    Tambah Anak
+                  </button>
+                )}
+              </div>
+              <div className="text-center py-12 text-gray-500">
+                <Baby className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Tab Anak</p>
+                <p className="text-sm mt-2">Coming soon - Next update</p>
+              </div>
             </div>
           )}
 
           {activeTab === 'penempatan' && (
-            <div className="text-center py-12 text-gray-500">
-              <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">Tab Penempatan</p>
-              <p className="text-sm mt-2">Coming soon - Next update</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Sejarah Penempatan</h2>
+                {canEdit && (
+                  <button className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                    <Plus className="w-5 h-5" />
+                    Tambah Penempatan
+                  </button>
+                )}
+              </div>
+              <div className="text-center py-12 text-gray-500">
+                <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Tab Penempatan</p>
+                <p className="text-sm mt-2">Coming soon - Next update</p>
+              </div>
             </div>
           )}
 
           {activeTab === 'pangkat' && (
-            <div className="text-center py-12 text-gray-500">
-              <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">Tab Kenaikan Pangkat</p>
-              <p className="text-sm mt-2">Coming soon - Next update</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Sejarah Kenaikan Pangkat</h2>
+                {canEdit && (
+                  <button className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                    <Plus className="w-5 h-5" />
+                    Tambah Kenaikan Pangkat
+                  </button>
+                )}
+              </div>
+              <div className="text-center py-12 text-gray-500">
+                <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Tab Kenaikan Pangkat</p>
+                <p className="text-sm mt-2">Coming soon - Next update</p>
+              </div>
             </div>
           )}
         </div>
