@@ -5,7 +5,7 @@ import UserProfile from './UserProfile';
 
 export default function App() {
   // Apps Script Web App URL
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhTfSxg11fWYXIDEfy5I4dwX80GPlQECrc7UUfOZ9A62qfMHx6zVMK2n6y5jXhncGU/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_wVex_2Gosx8QivW8jdWeVOrhFjCf5yzgGcSEP7nzUw2vZZHtgBmyVWIZF8_fUgki/exec';
   
   const [currentView, setCurrentView] = useState('login'); // 'login', 'register', 'dashboard', 'profile'
   const [currentUser, setCurrentUser] = useState(null);
